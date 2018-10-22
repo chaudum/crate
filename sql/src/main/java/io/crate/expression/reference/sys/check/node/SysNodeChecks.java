@@ -23,9 +23,9 @@
 package io.crate.expression.reference.sys.check.node;
 
 import io.crate.data.Input;
+import io.crate.expression.reference.sys.SysRowUpdater;
 import io.crate.metadata.ColumnIdent;
 import io.crate.metadata.sys.SysNodeChecksTableInfo;
-import io.crate.expression.reference.sys.SysRowUpdater;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.LifecycleListener;

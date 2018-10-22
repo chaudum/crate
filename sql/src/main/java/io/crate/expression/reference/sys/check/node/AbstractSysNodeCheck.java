@@ -27,7 +27,6 @@ import io.crate.analyze.Id;
 import io.crate.expression.reference.sys.check.AbstractSysCheck;
 import io.crate.types.DataTypes;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.cluster.service.ClusterService;
 
 import java.util.List;
 import java.util.function.Function;
@@ -38,15 +37,13 @@ public abstract class AbstractSysNodeCheck extends AbstractSysCheck implements S
 
 
     private static final String LINK_PATTERN = "https://cr8.is/d-node-check-";
-    protected final ClusterService clusterService;
 
     private BytesRef nodeId;
     private BytesRef rowId;
     private boolean acknowledged;
 
-    AbstractSysNodeCheck(int id, String description, Severity severity, ClusterService clusterService) {
+    AbstractSysNodeCheck(int id, String description, Severity severity) {
         super(id, description, severity, LINK_PATTERN);
-        this.clusterService = clusterService;
         acknowledged = false;
     }
 
@@ -73,7 +70,6 @@ public abstract class AbstractSysNodeCheck extends AbstractSysCheck implements S
     }
 
     private BytesRef generateId(BytesRef nodeId) {
-        //noinspection ConstantConditions
         return new BytesRef(PK_FUNC.apply(ImmutableList.of(DataTypes.STRING.value(id()), nodeId)));
     }
 
