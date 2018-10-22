@@ -36,9 +36,8 @@ import io.crate.metadata.table.StaticTableInfo;
 import io.crate.types.DataTypes;
 import org.elasticsearch.cluster.ClusterState;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Map;
+import java.util.stream.StreamSupport;
 
 public class SysPrivilegesTableInfo extends StaticTableInfo {
 
@@ -105,12 +104,9 @@ public class SysPrivilegesTableInfo extends StaticTableInfo {
     }
 
     public static Iterable<PrivilegeRow> buildPrivilegesRows(Iterable<User> users) {
-        List<PrivilegeRow> privileges = new ArrayList<>();
-        for (User user : users) {
-            for (Privilege privilege : user.privileges()) {
-                privileges.add(new PrivilegeRow(user.name(), privilege));
-            }
-        }
-        return privileges;
+        return () -> StreamSupport.stream(users.spliterator(), false)
+            .flatMap(u -> StreamSupport.stream(u.privileges().spliterator(), false)
+                .map(p -> new PrivilegeRow(u.name(), p))
+            ).iterator();
     }
 }
