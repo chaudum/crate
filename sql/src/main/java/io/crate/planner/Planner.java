@@ -22,6 +22,7 @@
 
 package io.crate.planner;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import io.crate.analyze.AnalyzedBegin;
 import io.crate.analyze.AnalyzedCommit;
@@ -51,6 +52,7 @@ import io.crate.analyze.ShowCreateTableAnalyzedStatement;
 import io.crate.analyze.relations.QueriedRelation;
 import io.crate.exceptions.UnhandledServerException;
 import io.crate.expression.symbol.Symbol;
+import io.crate.license.LicenseService;
 import io.crate.metadata.Functions;
 import io.crate.metadata.Reference;
 import io.crate.metadata.doc.DocTableInfo;
@@ -71,6 +73,7 @@ import io.crate.planner.statement.SetLicensePlan;
 import io.crate.planner.statement.SetSessionPlan;
 import io.crate.profile.ProfilingContext;
 import io.crate.profile.Timer;
+import io.crate.settings.SharedSettings;
 import io.crate.sql.tree.Expression;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterState;
@@ -97,11 +100,12 @@ public class Planner extends AnalyzedStatementVisitor<PlannerContext, Plan> {
     private final ClusterService clusterService;
     private final LogicalPlanner logicalPlanner;
     private final Functions functions;
+    private final LicenseService licenseService;
 
     private String[] awarenessAttributes;
 
     @Inject
-    public Planner(Settings settings, ClusterService clusterService, Functions functions, TableStats tableStats) {
+    public Planner(Settings settings, ClusterService clusterService, Functions functions, TableStats tableStats, LicenseService licenseService) {
         this.clusterService = clusterService;
         this.functions = functions;
         this.logicalPlanner = new LogicalPlanner(functions, tableStats);
@@ -111,6 +115,7 @@ public class Planner extends AnalyzedStatementVisitor<PlannerContext, Plan> {
         clusterService.getClusterSettings().addSettingsUpdateConsumer(
             AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING,
             this::setAwarenessAttributes);
+        this.licenseService = licenseService;
     }
 
     private void setAwarenessAttributes(String[] awarenessAttributes) {
@@ -132,6 +137,7 @@ public class Planner extends AnalyzedStatementVisitor<PlannerContext, Plan> {
      * @return plan
      */
     public Plan plan(AnalyzedStatement analyzedStatement, PlannerContext plannerContext) {
+        Preconditions.checkState(allowSql(analyzedStatement), "Statement is not allowed. License is now expired");
         return process(analyzedStatement, plannerContext);
     }
 
@@ -376,6 +382,20 @@ public class Planner extends AnalyzedStatementVisitor<PlannerContext, Plan> {
 
     public Functions functions() {
         return functions;
+    }
+
+    //    @VisibleForTesting
+    //    public LicenseService licenseService() {
+    //        return licenseService;
+    //    }
+
+    private boolean allowSql(final AnalyzedStatement analyzedStatement) {
+        // always allow "set license" statements
+        if (analyzedStatement instanceof SetLicenseAnalyzedStatement) return true;
+
+        // block access when license is expired - enterprise only
+        final boolean enterpriseEnabled = SharedSettings.ENTERPRISE_LICENSE_SETTING.setting().get(clusterService.getSettings());
+        return (enterpriseEnabled && LicenseService.isLicenseExpired(licenseService.currentLicense()) == false);
     }
 }
 
