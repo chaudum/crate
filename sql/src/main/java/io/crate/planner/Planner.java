@@ -91,6 +91,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.BooleanSupplier;
 
 @Singleton
 public class Planner extends AnalyzedStatementVisitor<PlannerContext, Plan> {
@@ -100,12 +101,21 @@ public class Planner extends AnalyzedStatementVisitor<PlannerContext, Plan> {
     private final ClusterService clusterService;
     private final LogicalPlanner logicalPlanner;
     private final Functions functions;
-    private final LicenseService licenseService;
+    private final boolean enterpriseEnabled;
+    private LicenseService licenseService;
+    private BooleanSupplier hasValidLicense;
 
     private String[] awarenessAttributes;
 
     @Inject
     public Planner(Settings settings, ClusterService clusterService, Functions functions, TableStats tableStats, LicenseService licenseService) {
+        this(settings, clusterService, functions, tableStats, () -> false);
+        this.licenseService = licenseService;
+        this.hasValidLicense = () -> LicenseService.isLicenseExpired(this.licenseService.currentLicense()) == false;
+    }
+
+    @VisibleForTesting
+    public Planner(Settings settings, ClusterService clusterService, Functions functions, TableStats tableStats, BooleanSupplier hasValidLicense) {
         this.clusterService = clusterService;
         this.functions = functions;
         this.logicalPlanner = new LogicalPlanner(functions, tableStats);
@@ -115,7 +125,9 @@ public class Planner extends AnalyzedStatementVisitor<PlannerContext, Plan> {
         clusterService.getClusterSettings().addSettingsUpdateConsumer(
             AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING,
             this::setAwarenessAttributes);
-        this.licenseService = licenseService;
+        this.enterpriseEnabled = SharedSettings.ENTERPRISE_LICENSE_SETTING.setting().get(settings);
+        this.licenseService = null;
+        this.hasValidLicense = hasValidLicense;
     }
 
     private void setAwarenessAttributes(String[] awarenessAttributes) {
@@ -384,18 +396,11 @@ public class Planner extends AnalyzedStatementVisitor<PlannerContext, Plan> {
         return functions;
     }
 
-    //    @VisibleForTesting
-    //    public LicenseService licenseService() {
-    //        return licenseService;
-    //    }
-
     private boolean allowSql(final AnalyzedStatement analyzedStatement) {
-        // always allow "set license" statements
-        if (analyzedStatement instanceof SetLicenseAnalyzedStatement) return true;
-
-        // block access when license is expired - enterprise only
-        final boolean enterpriseEnabled = SharedSettings.ENTERPRISE_LICENSE_SETTING.setting().get(clusterService.getSettings());
-        return (enterpriseEnabled && LicenseService.isLicenseExpired(licenseService.currentLicense()) == false);
+        if (enterpriseEnabled == false) {
+            return true;
+        }
+        return hasValidLicense.getAsBoolean() || analyzedStatement instanceof SetLicenseAnalyzedStatement;
     }
 }
 

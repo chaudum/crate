@@ -110,7 +110,7 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
         return null;
     }
 
-    private boolean isLicenseExpired(DecryptedLicenseData decryptedLicenseData) {
+    public static boolean isLicenseExpired(DecryptedLicenseData decryptedLicenseData) {
         if (decryptedLicenseData == null) {
             return false;
         }
