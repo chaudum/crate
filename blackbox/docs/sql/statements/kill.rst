@@ -40,7 +40,7 @@ command processed before the final result is sent to the client.
 
 ``KILL ALL`` and ``KILL job_id`` return the number of contexts killed per node.
 For example if the only active query was ``select * from t`` and that query is
-being executed on 3 nodes, then ``KILL ALL`` will return 3.
+being executed on 3 nodes, then ``KILL ALL`` will return ``3``.
 
 Parameters
 ==========
